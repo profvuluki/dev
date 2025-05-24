@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>11-Biome Language Game - Animated Doors</title>
+  <meta charset="utf-8" />
+  <script src="https://aframe.io/releases/1.7.1/aframe.min.js"></script>
+  <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <style>
+    html, body, a-scene {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+    a-scene, canvas {
+      pointer-events: auto !important;
+    }
+    #challengeModal, #riddleModal, #finalScoreModal {
+      display: none;
+      position: fixed;
+      top: 20%;
+      left: 30%;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 10;
+      width: 40%;
+      box-shadow: 0 0 15px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    #challengeModal input, #challengeModal button,
+    #riddleModal input, #riddleModal button {
+      margin-top: 10px;
+    }
+    #challengeFeedback, #riddleFeedback {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    #progress {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 16px;
+      z-index: 15;
+    }
+    #scoreBar {
+      position: fixed;
+      top: 45px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.9);
+      color: #222;
+      padding: 8px 20px;
+      border-radius: 10px;
+      font-size: 15px;
+      z-index: 31;
+      min-width: 120px;
+      text-align: center;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+    }
+    #moveButton {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      background: #00FF00;
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 16px 32px;
+      font-size: 1.2em;
+      cursor: pointer;
+      opacity: 0.8;
+    }
+    #itemsBar {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.9);
+      color: #222;
+      padding: 8px 20px;
+      border-radius: 10px;
+      font-size: 15px;
+      z-index: 30;
+      min-width: 200px;
+      text-align: center;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+    }
+    #inventoryBar {
+      position: fixed;
+      top: 80px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #fff;
+      padding: 8px 20px;
+      border-radius: 10px;
+      z-index: 40;
+      font-size: 1.1em;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+    }
+    .inv-item {
+      display: inline-block;
+      margin: 0 8px;
+      cursor: pointer;
+      font-size: 1.3em;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      padding: 2px 6px;
+    }
+    .inv-item.selected {
+      border-color: #00b894;
+      background: #e0ffe0;
+    }
+    #messageBar {
+      position: fixed;
+      top: 120px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #222;
+      color: #fff;
+      padding: 8px 20px;
+      border-radius: 10px;
+      z-index: 41;
+      font-size: 1.1em;
+      min-width: 200px;
+      text-align: center;
+      display: none;
+    }
+    .item-icon {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      background: #eee;
+      border: 1px solid #aaa;
+      border-radius: 50%;
+      margin: 0 3px;
+      line-height: 24px;
+      font-size: 16px;
+      vertical-align: middle;
+    }
+    .item-unlocked {
+      background: #8f8;
+      border-color: #393;
+    }
+    .sphere-locked {
+      opacity: 0.3 !important;
+      pointer-events: none;
+    }
+    .sphere-unlocked {
+      opacity: 1 !important;
+      pointer-events: auto;
+    }
+    #finalScoreModal button {
+      margin-top: 20px;
+      padding: 10px 24px;
+      font-size: 1em;
+      border-radius: 8px;
+      border: none;
+      background: #00b894;
+      color: #fff;
+      cursor: pointer;
+    }
+    #keyNotice {
+      color: #e67e22;
+      font-weight: bold;
+      margin-top: 10px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <a-scene>
+    <a-assets>
+      <img id="tree-img" src="tree.png">
+    </a-assets>
+    <a-entity id="player" camera look-controls wasd-controls position="0 1.6 -5" rotation="0 90 0">
+      <a-entity cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+    </a-entity>
+    <a-entity id="biomes"></a-entity>
+    <a-entity light="type: ambient; intensity: 1"></a-entity>
+    <!-- Bridges between biomes -->
+    <a-box color="#8B0000" position="7.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="22.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="37.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="52.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="67.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="82.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="97.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="112.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="127.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+    <a-box color="#8B0000" position="142.5 0.6 -5" width="5" height="0.2" depth="1.5"></a-box>
+  </a-scene>
+
+  <!-- All overlays go AFTER the scene -->
+  <div id="progress">Biome 1 - 0/4 challenges completed</div>
+  <div id="scoreBar">Score: 0</div>
+  <div id="itemsBar">Items: <span id="itemsList"></span></div>
+  <div id="inventoryBar">Inventory: <span id="inventoryItems"></span></div>
+  <div id="messageBar"></div>
+  <div id="challengeModal">
+    <b>Language Challenge</b>
+    <p id="challengeQuestion">Loading...</p>
+    <input type="text" id="challengeAnswer" autocomplete="off">
+    <button onclick="submitChallenge()">Submit</button>
+    <button onclick="startVoiceInput()">🎤 Speak</button>
+    <div id="challengeFeedback"></div>
+    <button onclick="hideChallenge()" style="margin-top:10px;">Close</button>
+  </div>
+  <div id="riddleModal">
+    <b>Biome Riddle</b>
+    <p id="riddleQuestion">Riddle loading...</p>
+    <input type="text" id="riddleAnswer" autocomplete="off">
+    <button onclick="submitRiddle()">Submit</button>
+    <div id="riddleFeedback"></div>
+    <button onclick="hideRiddle()" style="margin-top:10px;">Close</button>
+  </div>
+  <div id="finalScoreModal">
+    <div id="finalScoreText"></div>
+    <button onclick="closeFinalScore()">Close</button>
+  </div>
+  <div id="keyNotice">You picked up the key! Click the door to unlock it.</div>
+  <button id="moveButton">Move Forward</button>
+
+  <script>
+    // --- Game Data ---
+    const challenges = { /* ...your challenge data... */ };
+    const riddles = { /* ...your riddle data... */ };
+
+    // --- Game State ---
+    const solved = {}, unlockedItems = {}, firstTryTracker = {}, riddleSolved = {}, biomeKeys = {}, biomePotions = {}, biomeGems = {};
+    let totalScore = 0, currentZone = 1, challengeOpen = false, riddleOpen = false, activeBiome = null, activeChallengeIndex = null;
+    const colors = ["#7BC8A4", "#FFD580", "#228B22", "#A9A9A9", "#4682B4", "#FF69B4", "#8A2BE2", "#FF4500", "#00CED1", "#DAA520", "#2E8B57"];
+    const inventory = {};
+    let selectedItem = null;
+
+    for (let i = 1; i <= 11; i++) {
+      solved[i] = [];
+      unlockedItems[i] = [];
+      firstTryTracker[i] = {};
+      riddleSolved[i] = false;
+      biomeKeys[i] = false;
+      biomePotions[i] = false;
+      biomeGems[i] = false;
+    }
+
+    // Use DOMContentLoaded for biome creation and event attachment
+    window.addEventListener('DOMContentLoaded', () => {
+      const biomeContainer = document.getElementById("biomes");
+      for (let i = 1; i <= 11; i++) {
+        const offset = (i - 1) * 15;
+
+        // Biome ground
+        const ground = document.createElement('a-box');
+        ground.setAttribute('color', colors[i - 1]);
+        ground.setAttribute('position', `${offset} 0.5 -5`);
+        ground.setAttribute('width', 10);
+        ground.setAttribute('height', 1);
+        ground.setAttribute('depth', 10);
+        biomeContainer.appendChild(ground);
+
+        // Biome label
+        const label = document.createElement('a-text');
+        label.setAttribute('id', `label${i}`);
+        label.setAttribute('value', i === 1 ? "Biome 1" : "Locked");
+        label.setAttribute('position', `${offset} 2 -5`);
+        label.setAttribute('align', 'center');
+        biomeContainer.appendChild(label);
+
+        // Door (in archway, right side, slightly forward for easier clicking)
+        const door = document.createElement('a-box');
+        door.setAttribute('id', `door${i}`);
+        door.setAttribute('class', 'biome-door');
+        door.setAttribute('biome', i);
+        door.setAttribute('position', `${offset + 5} 1 -4.7`);
+        door.setAttribute('width', 1.1);
+        door.setAttribute('height', 2.2);
+        door.setAttribute('depth', 0.3);
+        door.setAttribute('color', '#654321');
+        door.setAttribute('rotation', '0 90 0');
+        door.setAttribute('door-state', 'closed');
+        biomeContainer.appendChild(door);
+
+        // Challenge spheres (attach event listeners immediately after append)
+        for (let j = 0; j < 4; j++) {
+          const sphere = document.createElement('a-sphere');
+          sphere.setAttribute('class', 'clickable');
+          sphere.setAttribute('biome', i);
+          sphere.setAttribute('challenge', j);
+          sphere.setAttribute('id', `b${i}c${j}`);
+          sphere.setAttribute('position', `${offset + (j - 1.5) * 2} 1 -5`);
+          sphere.setAttribute('radius', 0.4);
+          const colorsSpheres = ["#FFC65D", "#FF8C65", "#65FFC6", "#A065FF"];
+          sphere.setAttribute('color', colorsSpheres[j]);
+          biomeContainer.appendChild(sphere);
+
+          // Attach click event right after appending
+          sphere.addEventListener('click', function () {
+            const biomeId = parseInt(sphere.getAttribute('biome'));
+            const challengeIdx = parseInt(sphere.getAttribute('challenge'));
+            if (
+              !challengeOpen &&
+              !riddleOpen &&
+              biomeId === currentZone &&
+              (challengeIdx === 0 || unlockedItems[biomeId].includes(challengeIdx - 1))
+            ) {
+              showChallenge(biomeId, challengeIdx);
+            }
+          });
+        }
+
+        // Key
+        const key = document.createElement('a-sphere');
+        key.setAttribute('id', `key${i}`);
+        key.setAttribute('class', 'biome-key');
+        key.setAttribute('biome', i);
+        key.setAttribute('position', `${offset} 1.2 -8`);
+        key.setAttribute('radius', 0.35);
+        key.setAttribute('color', '#FFD700');
+        key.setAttribute('visible', false);
+        biomeContainer.appendChild(key);
+
+        // Potion
+        const potion = document.createElement('a-box');
+        potion.setAttribute('id', `potion${i}`);
+        potion.setAttribute('class', 'biome-potion');
+        potion.setAttribute('biome', i);
+        potion.setAttribute('position', `${offset - 2} 1.2 -8`);
+        potion.setAttribute('width', 0.3);
+        potion.setAttribute('height', 0.5);
+        potion.setAttribute('depth', 0.3);
+        potion.setAttribute('color', '#00b894');
+        potion.setAttribute('visible', false);
+        biomeContainer.appendChild(potion);
+
+        // Gem
+        const gem = document.createElement('a-sphere');
+        gem.setAttribute('id', `gem${i}`);
+        gem.setAttribute('class', 'biome-gem');
+        gem.setAttribute('biome', i);
+        gem.setAttribute('position', `${offset + 2} 1.2 -8`);
+        gem.setAttribute('radius', 0.25);
+        gem.setAttribute('color', '#8e44ad');
+        gem.setAttribute('visible', false);
+        biomeContainer.appendChild(gem);
+
+        // Trees
+        const tree1 = document.createElement('a-image');
+        tree1.setAttribute('src', '#tree-img');
+        tree1.setAttribute('position', `${offset - 2} 0.5 -6`);
+        tree1.setAttribute('width', 1);
+        tree1.setAttribute('height', 2);
+        biomeContainer.appendChild(tree1);
+
+        const tree2 = document.createElement('a-image');
+        tree2.setAttribute('src', '#tree-img');
+        tree2.setAttribute('position', `${offset + 2} 0.5 -4`);
+        tree2.setAttribute('width', 1);
+        tree2.setAttribute('height', 2);
+        biomeContainer.appendChild(tree2);
+
+        // Walls and ceiling (NO RIGHT WALL)
+        const wallBack = document.createElement('a-box');
+        wallBack.setAttribute('color', '#444');
+        wallBack.setAttribute('position', `${offset} 2.5 -10`);
+        wallBack.setAttribute('width', 10);
+        wallBack.setAttribute('height', 5);
+        wallBack.setAttribute('depth', 0.2);
+        biomeContainer.appendChild(wallBack);
+
+        const wallLeft = document.createElement('a-box');
+        wallLeft.setAttribute('color', '#444');
+        wallLeft.setAttribute('position', `${offset - 5} 2.5 -5`);
+        wallLeft.setAttribute('width', 0.2);
+        wallLeft.setAttribute('height', 5);
+        wallLeft.setAttribute('depth', 10);
+        biomeContainer.appendChild(wallLeft);
+
+        // NO RIGHT WALL HERE
+
+        const ceiling = document.createElement('a-box');
+        ceiling.setAttribute('color', '#888');
+        ceiling.setAttribute('position', `${offset} 5.5 -5`);
+        ceiling.setAttribute('width', 10);
+        ceiling.setAttribute('height', 1);
+        ceiling.setAttribute('depth', 10);
+        biomeContainer.appendChild(ceiling);
+
+        // Arch on right wall (door sits in this arch)
+        const archLeft = document.createElement('a-box');
+        archLeft.setAttribute('color', '#444');
+        archLeft.setAttribute('position', `${offset + 4.2} 2 -4.7`);
+        archLeft.setAttribute('width', 0.4);
+        archLeft.setAttribute('height', 4);
+        archLeft.setAttribute('depth', 0.2);
+        biomeContainer.appendChild(archLeft);
+
+        const archRight = document.createElement('a-box');
+        archRight.setAttribute('color', '#444');
+        archRight.setAttribute('position', `${offset + 5.8} 2 -4.7`);
+        archRight.setAttribute('width', 0.4);
+        archRight.setAttribute('height', 4);
+        archRight.setAttribute('depth', 0.2);
+        biomeContainer.appendChild(archRight);
+
+        const archTop = document.createElement('a-torus');
+        archTop.setAttribute('color', '#444');
+        archTop.setAttribute('position', `${offset + 5} 4.2 -4.7`);
+        archTop.setAttribute('radius', 0.9);
+        archTop.setAttribute('radius-tubular', 0.18);
+        archTop.setAttribute('arc', 180);
+        archTop.setAttribute('rotation', '90 0 0');
+        biomeContainer.appendChild(archTop);
+      }
+
+      // --- Attach Event Listeners for other elements as before ---
+      setTimeout(() => {
+        // Key pickup
+        document.querySelectorAll('.biome-key').forEach(function (el) {
+          el.addEventListener('click', function () {
+            const biomeId = parseInt(el.getAttribute('biome'));
+            if (biomeId === currentZone && !biomeKeys[biomeId]) {
+              biomeKeys[biomeId] = true;
+              el.setAttribute('visible', false);
+              addItem(`key${biomeId}`, `Key ${biomeId}`, '🔑');
+              showMessage('You picked up the key! Select it in your inventory and click the door.');
+            }
+          });
+        });
+        // Potion pickup
+        document.querySelectorAll('.biome-potion').forEach(function (el) {
+          el.addEventListener('click', function () {
+            const biomeId = parseInt(el.getAttribute('biome'));
+            if (biomeId === currentZone && !biomePotions[biomeId]) {
+              biomePotions[biomeId] = true;
+              el.setAttribute('visible', false);
+              addItem(`potion${biomeId}`, `Potion ${biomeId}`, '🧪');
+              showMessage('You picked up a potion! Select it in your inventory to use.');
+            }
+          });
+        });
+        // Gem pickup (for crafting)
+        document.querySelectorAll('.biome-gem').forEach(function (el) {
+          el.addEventListener('click', function () {
+            const biomeId = parseInt(el.getAttribute('biome'));
+            if (biomeId === currentZone && !biomeGems[biomeId]) {
+              biomeGems[biomeId] = true;
+              el.setAttribute('visible', false);
+              addItem(`gem${biomeId}`, `Gem ${biomeId}`, '💎');
+              showMessage('You picked up a gem! Combine it with a key for a Super Key.');
+            }
+          });
+        });
+        // Door unlock and open/close logic
+        document.querySelectorAll('.biome-door').forEach(function (el) {
+          el.addEventListener('click', function () {
+            const biomeId = parseInt(el.getAttribute('biome'));
+            // Super Key logic
+            if (selectedItem === `superkey${biomeId}`) {
+              openOrCloseDoor(el);
+              showMessage('Door unlocked and opened with Super Key!');
+              delete inventory[`superkey${biomeId}`];
+              selectedItem = null;
+              updateInventoryBar();
+              unlockNextBiome(currentZone + 1);
+              return;
+            }
+            // Normal key logic
+            if (
+              biomeId === currentZone &&
+              solved[biomeId].length === 4 &&
+              riddleSolved[biomeId] &&
+              selectedItem === `key${biomeId}`
+            ) {
+              openOrCloseDoor(el);
+              showMessage('Door unlocked and opened with Key!');
+              delete inventory[`key${biomeId}`];
+              selectedItem = null;
+              updateInventoryBar();
+              unlockNextBiome(currentZone + 1);
+            } else if (biomeId === currentZone && !riddleSolved[biomeId]) {
+              showMessage('You must solve the riddle before opening the door!');
+            } else if (biomeId === currentZone) {
+              showMessage('Select the correct key in your inventory to open this door.');
+            } else {
+              // Allow toggling door open/close if already unlocked
+              if (el.getAttribute('door-state') === 'open') {
+                openOrCloseDoor(el); // close it
+              }
+            }
+          });
+        });
+
+        updateSpheresLockState();
+      }, 0);
+
+      updateProgress();
+    });
+
+    // --- Door open/close animation logic ---
+    function openOrCloseDoor(doorEl) {
+      const state = doorEl.getAttribute('door-state');
+      if (state === 'closed') {
+        doorEl.setAttribute('animation__open', {
+          property: 'rotation',
+          to: '0 90 0',
+          dur: 800,
+          easing: 'easeInOutQuad'
+        });
+        doorEl.setAttribute('door-state', 'open');
+      } else {
+        doorEl.setAttribute('animation__close', {
+          property: 'rotation',
+          to: '0 0 0',
+          dur: 800,
+          easing: 'easeInOutQuad'
+        });
+        doorEl.setAttribute('door-state', 'closed');
+      }
+    }
+
+    // --- Inventory UI and Advanced Mechanics ---
+    function addItem(itemId, itemName, icon) {
+      inventory[itemId] = { name: itemName, icon: icon };
+      updateInventoryBar();
+    }
+    function updateInventoryBar() {
+      const bar = document.getElementById('inventoryItems');
+      bar.innerHTML = '';
+      Object.entries(inventory).forEach(([id, item]) => {
+        const span = document.createElement('span');
+        span.className = 'inv-item' + (selectedItem === id ? ' selected' : '');
+        span.innerText = item.icon;
+        span.title = item.name;
+        span.onclick = () => {
+          selectedItem = id;
+          updateInventoryBar();
+          showMessage(`Selected: ${item.name}`);
+        };
+        bar.appendChild(span);
+      });
+    }
+    function showMessage(msg, ms=2500) {
+      const bar = document.getElementById("messageBar");
+      bar.innerText = msg;
+      bar.style.display = "block";
+      clearTimeout(bar._timeout);
+      bar._timeout = setTimeout(() => { bar.style.display = "none"; }, ms);
+    }
+    // Potion use logic (click inventory icon)
+    document.getElementById('inventoryItems').addEventListener('click', function(e) {
+      if (e.target.classList.contains('inv-item') && e.target.title && e.target.title.startsWith('Potion')) {
+        showMessage('Speed boost for 5 seconds!');
+        const player = document.getElementById('player');
+        player.setAttribute('wasd-controls', 'acceleration: 800');
+        setTimeout(() => {
+          player.setAttribute('wasd-controls', 'acceleration: 200');
+          showMessage('Speed boost ended.');
+        }, 5000);
+        delete inventory[selectedItem];
+        selectedItem = null;
+        updateInventoryBar();
+      }
+    });
+    // Crafting: Combine key and gem for a Super Key
+    document.getElementById('inventoryBar').addEventListener('dblclick', function() {
+      const keyId = `key${currentZone}`;
+      const gemId = `gem${currentZone}`;
+      if (inventory[keyId] && inventory[gemId]) {
+        delete inventory[keyId];
+        delete inventory[gemId];
+        addItem(`superkey${currentZone}`, `Super Key ${currentZone}`, '🗝️');
+        showMessage('You crafted a Super Key! Use it on the door.');
+        updateInventoryBar();
+      }
+    });
+
+    // --- Game Logic ---
+    function updateSpheresLockState() {
+      for (let i = 1; i <= 11; i++) {
+        for (let j = 0; j < 4; j++) {
+          const sphere = document.getElementById(`b${i}c${j}`);
+          if (!sphere) continue;
+          if (i !== currentZone) {
+            sphere.classList.add('sphere-locked');
+            sphere.classList.remove('sphere-unlocked');
+          } else if (j === 0 || unlockedItems[i].includes(j - 1)) {
+            sphere.classList.remove('sphere-locked');
+            sphere.classList.add('sphere-unlocked');
+          } else {
+            sphere.classList.add('sphere-locked');
+            sphere.classList.remove('sphere-unlocked');
+          }
+        }
+      }
+    }
+    function showChallenge(biomeId, challengeIdx) {
+      if (solved[biomeId].includes(challengeIdx)) return;
+      activeBiome = biomeId;
+      activeChallengeIndex = challengeIdx;
+      const q = challenges[biomeId][challengeIdx];
+      document.getElementById("challengeQuestion").innerText = q.question;
+      document.getElementById("challengeAnswer").value = "";
+      document.getElementById("challengeFeedback").innerText = "";
+      document.getElementById("challengeModal").style.display = "block";
+      challengeOpen = true;
+    }
+    function hideChallenge() {
+      document.getElementById("challengeModal").style.display = "none";
+      challengeOpen = false;
+    }
+    function updateProgress() {
+      document.getElementById("progress").innerText = `Biome ${currentZone} - ${solved[currentZone].length}/4 challenges completed`;
+      updateItemsBar();
+      updateSpheresLockState();
+      updateScoreBar();
+    }
+    function updateItemsBar() {
+      const itemsList = document.getElementById("itemsList");
+      let html = "";
+      for (let i = 0; i < 4; i++) {
+        if (unlockedItems[currentZone].includes(i)) {
+          html += `<span class="item-icon item-unlocked" title="Item ${i+1}">&#10003;</span>`;
+        } else {
+          html += `<span class="item-icon" title="Locked Item ${i+1}">&#10007;</span>`;
+        }
+      }
+      itemsList.innerHTML = html;
+    }
+    function updateScoreBar() {
+      document.getElementById("scoreBar").innerText = `Score: ${totalScore}`;
+    }
+    function submitChallenge() {
+      const userAnswer = document.getElementById("challengeAnswer").value.trim().toLowerCase();
+      const correctAnswer = challenges[activeBiome][activeChallengeIndex].answer.toLowerCase();
+      if (firstTryTracker[activeBiome][activeChallengeIndex] === undefined) {
+        firstTryTracker[activeBiome][activeChallengeIndex] = true;
+      }
+      if (userAnswer === correctAnswer) {
+        document.getElementById("challengeFeedback").innerText = "Correct!";
+        if (firstTryTracker[activeBiome][activeChallengeIndex]) {
+          totalScore++;
+          updateScoreBar();
+          firstTryTracker[activeBiome][activeChallengeIndex] = false;
+        }
+        if (!solved[activeBiome].includes(activeChallengeIndex)) {
+          solved[activeBiome].push(activeChallengeIndex);
+          unlockedItems[activeBiome].push(activeChallengeIndex);
+        }
+        const sphere = document.getElementById(`b${activeBiome}c${activeChallengeIndex}`);
+        if (sphere) sphere.setAttribute("color", "#888");
+        updateProgress();
+        if (solved[activeBiome].length === 1) {
+          const key = document.getElementById(`key${activeBiome}`);
+          if (key) key.setAttribute('visible', true);
+        }
+        if (solved[activeBiome].length === 2) {
+          const potion = document.getElementById(`potion${activeBiome}`);
+          if (potion) potion.setAttribute('visible', true);
+        }
+        if (solved[activeBiome].length === 3) {
+          const gem = document.getElementById(`gem${activeBiome}`);
+          if (gem) gem.setAttribute('visible', true);
+        }
+        if (solved[activeBiome].length === challenges[activeBiome].length) {
+          setTimeout(() => {
+            hideChallenge();
+            showRiddleModal();
+          }, 1000);
+        } else {
+          setTimeout(() => hideChallenge(), 1000);
+        }
+      } else {
+        document.getElementById("challengeFeedback").innerText = "Incorrect, try again.";
+        firstTryTracker[activeBiome][activeChallengeIndex] = false;
+      }
+    }
+    function showRiddleModal() {
+      riddleOpen = true;
+      document.getElementById("riddleQuestion").innerText = riddles[currentZone].question;
+      document.getElementById("riddleAnswer").value = "";
+      document.getElementById("riddleFeedback").innerText = "";
+      document.getElementById("riddleModal").style.display = "block";
+    }
+    function hideRiddle() {
+      document.getElementById("riddleModal").style.display = "none";
+      riddleOpen = false;
+    }
+    function submitRiddle() {
+      const userAnswer = document.getElementById("riddleAnswer").value.trim().toLowerCase();
+      const correctAnswer = riddles[currentZone].answer.toLowerCase();
+      if (userAnswer === correctAnswer) {
+        document.getElementById("riddleFeedback").innerText = "Correct! Now use your items to open the door.";
+        riddleSolved[currentZone] = true;
+        setTimeout(() => {
+          hideRiddle();
+        }, 1200);
+      } else {
+        document.getElementById("riddleFeedback").innerText = "Incorrect, try again.";
+      }
+    }
+    function unlockNextBiome(id) {
+      if (id > 11) {
+        showFinalScore();
+        return;
+      }
+      document.getElementById(`label${id}`).setAttribute("value", `Biome ${id}`);
+      currentZone = id;
+      updateProgress();
+      hideChallenge();
+    }
+    function showFinalScore() {
+      const totalQuestions = 11 * 4;
+      const percent = ((totalScore / totalQuestions) * 100).toFixed(2);
+      document.getElementById("finalScoreText").innerHTML =
+        `<b>Game complete!</b><br>Your score: <b>${totalScore}</b> out of <b>${totalQuestions}</b><br>Percentage: <b>${percent}%</b>`;
+      document.getElementById("finalScoreModal").style.display = "block";
+    }
+    function closeFinalScore() {
+      document.getElementById("finalScoreModal").style.display = "none";
+    }
+    document.getElementById('moveButton').addEventListener('click', function () {
+      const player = document.querySelector('#player');
+      const direction = new THREE.Vector3();
+      player.object3D.getWorldDirection(direction);
+      const pos = player.getAttribute("position");
+      const newPos = {
+        x: pos.x + direction.x * -1,
+        y: pos.y,
+        z: pos.z + direction.z * -1
+      };
+      player.setAttribute("position", newPos);
+    });
+    function startVoiceInput() {
+      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+        alert('Speech recognition not supported in this browser.');
+        return;
+      }
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.onresult = function(event) {
+        document.getElementById('challengeAnswer').value = event.results[0][0].transcript;
+        recognition.stop();
+        submitChallenge();
+      };
+      recognition.onerror = function(event) {
+        document.getElementById('challengeFeedback').innerText = "Voice input error: " + event.error;
+        recognition.stop();
+      };
+      recognition.onend = function() {};
+      recognition.start();
+    }
+  </script>
+</body>
+</html>
